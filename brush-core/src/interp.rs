@@ -1425,6 +1425,15 @@ async fn execute_command(
             .await;
     }
 
+    // Running another command starts a new exit attempt: an `exit` that warned about
+    // stopped jobs no longer blocks a later one. Exit attempts themselves -- directly,
+    // or through `builtin`/`command` -- don't clear the warning, so a second consecutive
+    // attempt gets through. Sourcing does not by itself clear it either; the commands in
+    // the sourced file clear it as they run.
+    if commands::starts_new_exit_attempt(&cmd_name, &args) {
+        shell.clear_stopped_jobs_exit_warning();
+    }
+
     // Construct the command struct.
     let mut cmd = commands::SimpleCommand::new(shell, params, cmd_name, args);
     cmd.process_group_id = context.process_group_id;

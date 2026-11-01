@@ -257,6 +257,7 @@ impl<SE: extensions::ShellExtensions> Default for Shell<SE> {
             funcs: functions::FunctionEnv::default(),
             options: options::RuntimeOptions::default(),
             jobs: jobs::JobManager::default(),
+            stopped_jobs_warning_issued: false,
             aliases: HashMap::default(),
             last_exit_status: 0,
             last_exit_status_change_count: 0,

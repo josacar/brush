@@ -13,6 +13,23 @@ cases:
       #expect-prompt
       #send:Ctrl+D
 
+  - name: "exit warns about stopped jobs"
+    pty: true
+    ignore_stdout: true # job-control status messages don't line up
+    stdin: |
+      #expect-prompt
+      sh -c 'echo ready-$((1 + 1)); exec sleep 30'
+      #send:Enter
+      #expect:ready-2
+      #send:Ctrl+Z
+      #expect-prompt
+      exit
+      #send:Enter
+      #expect:There are stopped jobs.
+      #expect-prompt
+      exit
+      #send:Enter
+
   - name: "SIGINT ends the command an interactive shell is running"
     known_failure: true # TODO(signals): an interactive brush goes on with the command it's running
     pty: true

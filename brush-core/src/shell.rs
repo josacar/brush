@@ -92,6 +92,11 @@ pub struct Shell<SE: extensions::ShellExtensions = extensions::DefaultShellExten
     #[cfg_attr(feature = "serde", serde(skip))]
     jobs: jobs::JobManager,
 
+    /// Whether the shell has already warned about stopped jobs during the current
+    /// exit attempt. Cleared when another command runs, so a later exit warns again.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    stopped_jobs_warning_issued: bool,
+
     /// Shell aliases.
     aliases: HashMap<String, String>,
 
@@ -168,6 +173,7 @@ impl<SE: extensions::ShellExtensions> Clone for Shell<SE> {
             funcs: self.funcs.clone(),
             options: self.options.clone(),
             jobs: jobs::JobManager::new(),
+            stopped_jobs_warning_issued: self.stopped_jobs_warning_issued,
             aliases: self.aliases.clone(),
             last_exit_status: self.last_exit_status,
             last_exit_status_change_count: self.last_exit_status_change_count,

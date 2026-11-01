@@ -100,6 +100,75 @@ fn run_in_bg_then_fg() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test_with::executable(sleep, ps)]
+#[test]
+fn exit_warns_about_stopped_jobs() -> anyhow::Result<()> {
+    let mut session = start_shell_session()?;
+    session.expect_prompt()?;
+    let shell_pid = session.exec_output("echo $$")?.trim().parse()?;
+
+    // Suspend a foreground job.
+    session.send_line("sleep 30")?;
+    wait_for_state(shell_pid, "sleep", ProcessState::Sleeping)?;
+    session.suspend()?;
+    session
+        .expect_prompt()
+        .context("Prompt after suspending sleep")?;
+    wait_for_state(shell_pid, "sleep", ProcessState::Stopped)?;
+
+    // The first exit warns and leaves the shell running.
+    let output = session.exec_output("exit")?;
+    assert!(
+        output.contains("There are stopped jobs."),
+        "unexpected output: {output}"
+    );
+
+    // Another command starts a fresh exit attempt, so an exit warns again.
+    session.exec_output("true")?;
+    let output = session.exec_output("exit")?;
+    assert!(
+        output.contains("There are stopped jobs."),
+        "unexpected output: {output}"
+    );
+
+    // With no command in between, a second exit goes through.
+    session.send_line("exit")?;
+    session
+        .expect(expectrl::Eof)
+        .context("shell did not exit")?;
+
+    Ok(())
+}
+
+#[test_with::executable(sleep, ps)]
+#[test]
+fn end_of_input_warns_about_stopped_jobs() -> anyhow::Result<()> {
+    let mut session = start_shell_session()?;
+    session.expect_prompt()?;
+    let shell_pid = session.exec_output("echo $$")?.trim().parse()?;
+
+    session.send_line("sleep 30")?;
+    wait_for_state(shell_pid, "sleep", ProcessState::Sleeping)?;
+    session.suspend()?;
+    session
+        .expect_prompt()
+        .context("Prompt after suspending sleep")?;
+    wait_for_state(shell_pid, "sleep", ProcessState::Stopped)?;
+
+    // End-of-input warns like `exit` does, and a second one exits.
+    session.send(expectrl::ControlCode::EndOfTransmission)?;
+    session
+        .expect("There are stopped jobs.")
+        .context("first end-of-input should warn")?;
+    session.expect_prompt()?;
+    session.send(expectrl::ControlCode::EndOfTransmission)?;
+    session
+        .expect(expectrl::Eof)
+        .context("shell did not exit")?;
+
+    Ok(())
+}
+
 #[test_with::executable(sh, sleep)]
 #[test]
 fn resume_suspended_pipeline_in_foreground() -> anyhow::Result<()> {

@@ -377,6 +377,23 @@ pub struct SimpleCommand<'a, SE: extensions::ShellExtensions> {
     pub argv0: Option<String>,
 }
 
+/// Returns whether running a command starts a new exit attempt, clearing any warning left
+/// by a previous `exit` that found stopped jobs.
+pub(crate) fn starts_new_exit_attempt(command_name: &str, args: &[CommandArg]) -> bool {
+    match command_name {
+        // The exit builtin is an exit attempt in its own right.
+        "exit" => false,
+        // `builtin exit` and `command exit` are exit attempts too.
+        "builtin" | "command" => !matches!(
+            args.get(1),
+            Some(CommandArg::String(name)) if name == "exit"
+        ),
+        // A sourced file's commands clear the warning themselves as they run.
+        "source" | "." => false,
+        _ => true,
+    }
+}
+
 impl<'a, SE: extensions::ShellExtensions> SimpleCommand<'a, SE> {
     /// Creates a new `SimpleCommand` instance.
     ///
@@ -996,5 +1013,43 @@ mod tests {
         for arg in args {
             assert_eq!(arg.to_string(), String::from(arg));
         }
+    }
+
+    #[test]
+    fn exits_do_not_start_a_new_exit_attempt() {
+        let args = |name: &str| vec![CommandArg::from(name)];
+
+        assert!(!starts_new_exit_attempt("exit", &args("exit")));
+        assert!(!starts_new_exit_attempt(
+            "builtin",
+            &[CommandArg::from("builtin"), CommandArg::from("exit")]
+        ));
+        assert!(!starts_new_exit_attempt(
+            "command",
+            &[CommandArg::from("command"), CommandArg::from("exit")]
+        ));
+        assert!(!starts_new_exit_attempt(
+            "source",
+            &[CommandArg::from("source"), CommandArg::from("file")]
+        ));
+        assert!(!starts_new_exit_attempt(
+            ".",
+            &[CommandArg::from("."), CommandArg::from("file")]
+        ));
+    }
+
+    #[test]
+    fn other_commands_start_a_new_exit_attempt() {
+        let args = |name: &str| vec![CommandArg::from(name)];
+
+        assert!(starts_new_exit_attempt("true", &args("true")));
+        assert!(starts_new_exit_attempt(
+            "builtin",
+            &[CommandArg::from("builtin"), CommandArg::from("true")]
+        ));
+        assert!(starts_new_exit_attempt(
+            "command",
+            &[CommandArg::from("command"), CommandArg::from("true")]
+        ));
     }
 }

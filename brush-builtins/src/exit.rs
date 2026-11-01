@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use clap::Parser;
 
 use brush_core::{ExecutionControlFlow, ExecutionResult, builtins};
@@ -19,6 +21,14 @@ impl<SE: brush_core::ShellExtensions> builtins::Builtin<SE> for ExitCommand {
         self,
         context: brush_core::ExecutionContext<'_, SE>,
     ) -> Result<brush_core::ExecutionResult, Self::Error> {
+        // Like bash, an interactive shell doesn't exit on the first request if jobs are
+        // stopped: it warns instead. A second request, with no other command in between,
+        // is allowed through.
+        if context.shell.check_for_stopped_jobs_on_exit() {
+            writeln!(context.stderr(), "There are stopped jobs.")?;
+            return Ok(ExecutionResult::general_error());
+        }
+
         #[expect(clippy::cast_sign_loss)]
         let code_8bit = if let Some(code_32bit) = &self.code {
             (code_32bit & 0xFF) as u8

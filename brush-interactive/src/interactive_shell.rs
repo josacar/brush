@@ -147,6 +147,17 @@ impl<'a, IB: InputBackend, SE: brush_core::ShellExtensions> InteractiveShell<'a,
                     drop(shell);
                 }
                 InteractiveExecutionResult::Eof => {
+                    // Like `exit`, an interactive shell warns on end-of-input if jobs are
+                    // stopped; a second end-of-input is allowed through.
+                    let mut shell = self.shell.lock().await;
+                    if shell.check_for_stopped_jobs_on_exit() {
+                        if announce_exit {
+                            writeln!(shell.stderr(), "exit")?;
+                        }
+                        writeln!(shell.stderr(), "There are stopped jobs.")?;
+                        drop(shell);
+                        continue;
+                    }
                     break Ok(());
                 }
             }
